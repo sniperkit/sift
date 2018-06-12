@@ -38,7 +38,7 @@ func writeOutput(format string, a ...interface{}) {
 	output := fmt.Sprintf(format, a...)
 	_, err := global.outputFile.Write([]byte(output))
 	if err != nil {
-		errorLogger.Fatalln("cannot write to output file:", err)
+		logger.Fatalln("cannot write to output file:", err)
 	}
 }
 

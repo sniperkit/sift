@@ -33,6 +33,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+var options *Options
+
 type Options struct {
 	BinarySkip          bool   `long:"binary-skip" description:"skip files that seem to be binary"`
 	BinaryAsText        bool   `short:"a" long:"binary-text" description:"process files that seem to be binary as text"`
@@ -135,6 +137,10 @@ type Options struct {
 	} `group:"Match Condition options" json:"-"`
 }
 
+func SetOptions(opts *Options) {
+	options = opts
+}
+
 func getHomeDir() string {
 	var home string
 	if runtime.GOOS == "windows" {
@@ -180,12 +186,12 @@ func listTypes() {
 	fmt.Println("Use --type/--no-type to include/exclude file types.")
 	fmt.Println("")
 	var types []string
-	for t := range global.fileTypesMap {
+	for t := range global.FileTypesMap {
 		types = append(types, t)
 	}
 	sort.Strings(types)
 	for _, e := range types {
-		t := global.fileTypesMap[e]
+		t := global.FileTypesMap[e]
 		var shebang string
 		if t.ShebangRegex != nil {
 			shebang = fmt.Sprintf("or first line matches /%s/", t.ShebangRegex)
@@ -277,11 +283,11 @@ func (o *Options) loadConfigFile(configFilePath string, label string) {
 	configFile, err := ioutil.ReadFile(configFilePath)
 	if err == nil && len(configFile) > 0 {
 		if err := json.Unmarshal(configFile, &o); err != nil {
-			errorLogger.Printf("cannot parse %s '%s': %s\n", label, configFilePath, err)
+			logger.Printf("cannot parse %s '%s': %s\n", label, configFilePath, err)
 		}
 	}
 	if err != nil {
-		errorLogger.Printf("cannot open %s '%s': %s\n", label, configFilePath, err)
+		logger.Printf("cannot open %s '%s': %s\n", label, configFilePath, err)
 	}
 }
 
@@ -384,7 +390,7 @@ func (o *Options) processTypes() error {
 		}
 		patterns := strings.Split(s[0], ",")
 		ft.Patterns = patterns
-		global.fileTypesMap[name] = ft
+		global.FileTypesMap[name] = ft
 	}
 
 	if o.ListTypes {
@@ -427,14 +433,14 @@ func (o *Options) checkFormats() error {
 
 	if len(o.IncludeTypes) > 0 {
 		for _, t := range strings.Split(o.IncludeTypes, ",") {
-			if _, ok := global.fileTypesMap[t]; !ok {
+			if _, ok := global.FileTypesMap[t]; !ok {
 				return fmt.Errorf("file type '%s' is not specified. See --list-types for a list of available file types", t)
 			}
 		}
 	}
 	if len(o.ExcludeTypes) > 0 {
 		for _, t := range strings.Split(o.ExcludeTypes, ",") {
-			if _, ok := global.fileTypesMap[t]; !ok {
+			if _, ok := global.FileTypesMap[t]; !ok {
 				return fmt.Errorf("file type '%s' is not specified. See --list-types for a list of available file types", t)
 			}
 		}
@@ -516,9 +522,9 @@ func (o *Options) preparePattern(pattern string) string {
 	return pattern
 }
 
-// processConditions checks conditions and puts them into global.conditions
+// processConditions checks conditions and puts them into global.Conditions
 func (o *Options) processConditions() error {
-	global.conditions = []Condition{}
+	global.Conditions = []Condition{}
 	conditionDirections := []ConditionType{ConditionPreceded, ConditionFollowed, ConditionSurrounded}
 
 	// parse preceded/followed/surrounded conditions without distance limit
@@ -530,7 +536,7 @@ func (o *Options) processConditions() error {
 			if err != nil {
 				return fmt.Errorf("cannot parse condition pattern '%s': %s\n", pattern, err)
 			}
-			global.conditions = append(global.conditions, Condition{regex: regex, conditionType: conditionDirections[i%3], within: -1, negated: i >= 3})
+			global.Conditions = append(global.Conditions, Condition{regex: regex, conditionType: conditionDirections[i%3], within: -1, negated: i >= 3})
 		}
 	}
 
@@ -554,7 +560,7 @@ func (o *Options) processConditions() error {
 			if err != nil {
 				return fmt.Errorf("cannot parse condition pattern '%s': %s", arg, err)
 			}
-			global.conditions = append(global.conditions, Condition{regex: regex, conditionType: conditionDirections[i%3], within: int64(within), negated: i >= 3})
+			global.Conditions = append(global.Conditions, Condition{regex: regex, conditionType: conditionDirections[i%3], within: int64(within), negated: i >= 3})
 		}
 	}
 
@@ -566,7 +572,7 @@ func (o *Options) processConditions() error {
 			if err != nil {
 				return fmt.Errorf("cannot parse condition pattern '%s': %s\n", pattern, err)
 			}
-			global.conditions = append(global.conditions, Condition{regex: regex, conditionType: ConditionFileMatches, negated: i == 1})
+			global.Conditions = append(global.Conditions, Condition{regex: regex, conditionType: ConditionFileMatches, negated: i == 1})
 		}
 	}
 
@@ -589,7 +595,7 @@ func (o *Options) processConditions() error {
 			if err != nil {
 				return fmt.Errorf("cannot parse condition pattern '%s': %s\n", s[1], err)
 			}
-			global.conditions = append(global.conditions, Condition{regex: regex, conditionType: ConditionLineMatches, lineRangeStart: int64(lineno), negated: i == 1})
+			global.Conditions = append(global.Conditions, Condition{regex: regex, conditionType: ConditionLineMatches, lineRangeStart: int64(lineno), negated: i == 1})
 		}
 	}
 
@@ -616,7 +622,7 @@ func (o *Options) processConditions() error {
 			if err != nil {
 				return fmt.Errorf("cannot parse condition pattern '%s': %s\n", s[2], err)
 			}
-			global.conditions = append(global.conditions, Condition{regex: regex, conditionType: ConditionRangeMatches, lineRangeStart: int64(lineStart), lineRangeEnd: int64(lineEnd), negated: i == 1})
+			global.Conditions = append(global.Conditions, Condition{regex: regex, conditionType: ConditionRangeMatches, lineRangeStart: int64(lineStart), lineRangeEnd: int64(lineEnd), negated: i == 1})
 		}
 	}
 
@@ -686,7 +692,7 @@ func (o *Options) checkCompatibility(patterns []string, targets []string) error 
 		return errors.New("options 'only-matching' and 'replace' cannot be used together")
 	}
 
-	if o.SmartCase && (len(patterns) > 1 || len(global.conditions) > 0) {
+	if o.SmartCase && (len(patterns) > 1 || len(global.Conditions) > 0) {
 		return errors.New("the smart case option cannot be used with multiple patterns or conditions")
 	}
 
@@ -707,7 +713,7 @@ func (o *Options) processConfigOptions() error {
 			globalConfigFilePath := filepath.Join(homedir, SiftConfigFile)
 			fmt.Fprintf(os.Stderr, "Global config file path: %s\n", globalConfigFilePath)
 		} else {
-			errorLogger.Println("could not detect user home directory.")
+			logger.Println("could not detect user home directory.")
 		}
 
 		localConfigFilePath := findLocalConfig()
@@ -764,17 +770,17 @@ func (o *Options) performAutoDetections(patterns []string, targets []string) {
 		}
 	}
 
-	if len(global.conditions) == 0 {
-		global.streamingAllowed = true
+	if len(global.Conditions) == 0 {
+		global.StreamingAllowed = true
 
 		if len(targets) == 1 {
 			if stdinTargetFound || netTargetFound {
-				global.streamingThreshold = 0
+				global.StreamingThreshold = 0
 				o.GroupByFile = false
 			} else {
 				stat, err := os.Stat(targets[0])
 				if err == nil && stat.Mode()&os.ModeType == 0 {
-					global.streamingThreshold = 0
+					global.StreamingThreshold = 0
 				}
 			}
 		}

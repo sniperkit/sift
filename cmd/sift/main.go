@@ -1,9 +1,9 @@
 package main
 
 import (
-	sift "github.com/sniperkit/sift/pkg"
+	cli "github.com/sniperkit/sift/plugin/cli"
 )
 
 func main() {
-	sift.RealMain()
+	cli.RealMain()
 }

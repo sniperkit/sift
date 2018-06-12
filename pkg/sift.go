@@ -21,139 +21,23 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
-	"sync"
 	"time"
 
-	// external
-	"golang.org/x/crypto/ssh/terminal"
-
 	// internal
-	nbreader "github.com/sniperkit/sift/pkg/nbreader"
-	gitignore "github.com/sniperkit/sift/pkg/gitignore"
-
+	gitignore "github.com/sniperkit/sift/plugin/gitignore"
+	nbreader "github.com/sniperkit/sift/plugin/nbreader"
 )
-
-type Condition struct {
-	regex          *regexp.Regexp
-	conditionType  ConditionType
-	within         int64
-	lineRangeStart int64
-	lineRangeEnd   int64
-	negated        bool
-}
-
-type FileType struct {
-	Patterns     []string
-	ShebangRegex *regexp.Regexp
-}
-
-type Match struct {
-	// offset of the start of the match
-	start int64
-	// offset of the end of the match
-	end int64
-	// offset of the beginning of the first line of the match
-	lineStart int64
-	// offset of the end of the last line of the match
-	lineEnd int64
-	// the match
-	match string
-	// the match including the non-matched text on the first and last line
-	line string
-	// the line number of the beginning of the match
-	lineno int64
-	// the index to global.conditions (if this match belongs to a condition)
-	conditionID int
-	// the context before the match
-	contextBefore *string
-	// the context after the match
-	contextAfter *string
-}
-
-type Matches []Match
-
-func (e Matches) Len() int           { return len(e) }
-func (e Matches) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
-func (e Matches) Less(i, j int) bool { return e[i].start < e[j].start }
-
-type Result struct {
-	conditionMatches Matches
-	matches          Matches
-	// if too many matches are found or input is read only from STDIN,
-	// matches are streamed through a channel
-	matchChan chan Matches
-	streaming bool
-	isBinary  bool
-	target    string
-}
 
 var (
 	InputBlockSize int = 256 * 1024
-	options        Options
-	errorLogger    = log.New(os.Stderr, "Error: ", 0)
-	errLineTooLong = errors.New("line too long")
 )
 
-// Global specifies
-type Global struct {
-	// public
-	Conditions            []Condition
-	StreamingAllowed      bool
-	StreamingThreshold    int
-	FileTypesMap          map[string]FileType
-
-	// private
-	filesChan             chan string
-	directoryChan         chan string
-	includeFilepathRegex  *regexp.Regexp
-	excludeFilepathRegex  *regexp.Regexp
-	netTcpRegex           *regexp.Regexp
-	outputFile            io.Writer
-	matchPatterns         []string
-	matchRegexes          []*regexp.Regexp
-	gitignoreCache        *gitignore.GitIgnoreCache
-	resultsChan           chan *Result
-	resultsDoneChan       chan struct{}
-	targetsWaitGroup      sync.WaitGroup
-	recurseWaitGroup      sync.WaitGroup
-	termHighlightFilename string
-	termHighlightLineno   string
-	termHighlightMatch    string
-	termHighlightReset    string
-	totalLineLengthErrors int64
-	totalMatchCount       int64
-	totalResultCount      int64
-	totalTargetCount      int64
-}
-
-var global &Global
-
-func SetGlobal(g *Global) error {
-	if g.outputFile == nil {
-		g.outputFile = os.Stdout
-	}
-
-	if g.NetTcpRegex == nil {
-		g.NetTcpRegex = regexp.MustCompile(`^(tcp[46]?)://(.*:\d+)$`)
-	}
-
-	if g.streamingThreshold <= 0 {
-	g.StreamingThreshold = 1 << 16
-	}
-
-	global = g
-}
-
-func Logger(logger *log.Logger) {
-	errorLogger = logger
-}
+// type Sift struct {}
 
 // processDirectories reads global.directoryChan and processes
 // directories via processDirectory.
@@ -191,12 +75,12 @@ func processDirectory(dirname string) {
 		gic = gitignore.NewCheckerWithCache(global.gitignoreCache)
 		err := gic.LoadBasePath(dirname)
 		if err != nil {
-			errorLogger.Printf("cannot load gitignore files for path '%s': %s", dirname, err)
+			logger.Printf("cannot load gitignore files for path '%s': %s", dirname, err)
 		}
 	}
 	dir, err := os.Open(dirname)
 	if err != nil {
-		errorLogger.Printf("cannot open directory '%s': %s\n", dirname, err)
+		logger.Printf("cannot open directory '%s': %s\n", dirname, err)
 		return
 	}
 	defer dir.Close()
@@ -206,7 +90,7 @@ func processDirectory(dirname string) {
 			return
 		}
 		if err != nil {
-			errorLogger.Printf("cannot read directory '%s': %s\n", dirname, err)
+			logger.Printf("cannot read directory '%s': %s\n", dirname, err)
 			return
 		}
 
@@ -222,7 +106,7 @@ func processDirectory(dirname string) {
 				for _, dirPattern := range options.ExcludeDirs {
 					matched, err := filepath.Match(dirPattern, fi.Name())
 					if err != nil {
-						errorLogger.Fatalf("cannot match malformed pattern '%s' against directory name: %s\n", dirPattern, err)
+						logger.Fatalf("cannot match malformed pattern '%s' against directory name: %s\n", dirPattern, err)
 					}
 					if matched {
 						continue nextEntry
@@ -232,7 +116,7 @@ func processDirectory(dirname string) {
 					for _, dirPattern := range options.IncludeDirs {
 						matched, err := filepath.Match(dirPattern, fi.Name())
 						if err != nil {
-							errorLogger.Fatalf("cannot match malformed pattern '%s' against directory name: %s\n", dirPattern, err)
+							logger.Fatalf("cannot match malformed pattern '%s' against directory name: %s\n", dirPattern, err)
 						}
 						if matched {
 							goto includeDirMatchFound
@@ -255,11 +139,11 @@ func processDirectory(dirname string) {
 				if options.FollowSymlinks && fi.Mode()&os.ModeType == os.ModeSymlink {
 					realPath, err := filepath.EvalSymlinks(fullpath)
 					if err != nil {
-						errorLogger.Printf("cannot follow symlink '%s': %s\n", fullpath, err)
+						logger.Printf("cannot follow symlink '%s': %s\n", fullpath, err)
 					} else {
 						realFi, err := os.Stat(realPath)
 						if err != nil {
-							errorLogger.Printf("cannot follow symlink '%s': %s\n", fullpath, err)
+							logger.Printf("cannot follow symlink '%s': %s\n", fullpath, err)
 						}
 						if realFi.IsDir() {
 							enqueueDirectory(realPath)
@@ -309,7 +193,7 @@ func processDirectory(dirname string) {
 			for _, filePattern := range options.ExcludeFiles {
 				matched, err := filepath.Match(filePattern, fi.Name())
 				if err != nil {
-					errorLogger.Fatalf("cannot match malformed pattern '%s' against file name: %s\n", filePattern, err)
+					logger.Fatalf("cannot match malformed pattern '%s' against file name: %s\n", filePattern, err)
 				}
 				if matched {
 					continue nextEntry
@@ -319,7 +203,7 @@ func processDirectory(dirname string) {
 				for _, filePattern := range options.IncludeFiles {
 					matched, err := filepath.Match(filePattern, fi.Name())
 					if err != nil {
-						errorLogger.Fatalf("cannot match malformed pattern '%s' against file name: %s\n", filePattern, err)
+						logger.Fatalf("cannot match malformed pattern '%s' against file name: %s\n", filePattern, err)
 					}
 					if matched {
 						goto includeFileMatchFound
@@ -332,14 +216,14 @@ func processDirectory(dirname string) {
 			// check file type options
 			if len(options.ExcludeTypes) > 0 {
 				for _, t := range strings.Split(options.ExcludeTypes, ",") {
-					for _, filePattern := range global.fileTypesMap[t].Patterns {
+					for _, filePattern := range global.FileTypesMap[t].Patterns {
 						if matched, _ := filepath.Match(filePattern, fi.Name()); matched {
 							continue nextEntry
 						}
 					}
-					sr := global.fileTypesMap[t].ShebangRegex
+					sr := global.FileTypesMap[t].ShebangRegex
 					if sr != nil {
-						if m, err := checkShebang(global.fileTypesMap[t].ShebangRegex, fullpath); m && err == nil {
+						if m, err := checkShebang(global.FileTypesMap[t].ShebangRegex, fullpath); m && err == nil {
 							continue nextEntry
 						}
 					}
@@ -347,14 +231,14 @@ func processDirectory(dirname string) {
 			}
 			if len(options.IncludeTypes) > 0 {
 				for _, t := range strings.Split(options.IncludeTypes, ",") {
-					for _, filePattern := range global.fileTypesMap[t].Patterns {
+					for _, filePattern := range global.FileTypesMap[t].Patterns {
 						if matched, _ := filepath.Match(filePattern, fi.Name()); matched {
 							goto includeTypeFound
 						}
 					}
-					sr := global.fileTypesMap[t].ShebangRegex
+					sr := global.FileTypesMap[t].ShebangRegex
 					if sr != nil {
-						if m, err := checkShebang(global.fileTypesMap[t].ShebangRegex, fullpath); err != nil || m {
+						if m, err := checkShebang(global.FileTypesMap[t].ShebangRegex, fullpath); err != nil || m {
 							goto includeTypeFound
 						}
 					}
@@ -390,9 +274,9 @@ func processFileTargets() {
 	defer global.targetsWaitGroup.Done()
 	dataBuffer := make([]byte, InputBlockSize)
 	testBuffer := make([]byte, InputBlockSize)
-	matchRegexes := make([]*regexp.Regexp, len(global.matchPatterns))
-	for i := range global.matchPatterns {
-		matchRegexes[i] = regexp.MustCompile(global.matchPatterns[i])
+	matchRegexes := make([]*regexp.Regexp, len(global.MatchPatterns))
+	for i := range global.MatchPatterns {
+		matchRegexes[i] = regexp.MustCompile(global.MatchPatterns[i])
 	}
 
 	for filepath := range global.filesChan {
@@ -410,7 +294,7 @@ func processFileTargets() {
 		} else {
 			infile, err = os.Open(filepath)
 			if err != nil {
-				errorLogger.Printf("cannot open file '%s': %s\n", filepath, err)
+				logger.Printf("cannot open file '%s': %s\n", filepath, err)
 				continue
 			}
 		}
@@ -419,7 +303,7 @@ func processFileTargets() {
 			rawReader := infile
 			reader, err = gzip.NewReader(rawReader)
 			if err != nil {
-				errorLogger.Printf("error decompressing file '%s', opening as normal file\n", infile.Name())
+				logger.Printf("error decompressing file '%s', opening as normal file\n", infile.Name())
 				infile.Seek(0, 0)
 				reader = infile
 			}
@@ -440,10 +324,10 @@ func processFileTargets() {
 				global.totalLineLengthErrors += 1
 				if options.ErrShowLineLength {
 					errmsg := fmt.Sprintf("file contains very long lines (>= %d bytes). See options --blocksize and --err-skip-line-length.", InputBlockSize)
-					errorLogger.Printf("cannot process data from file '%s': %s\n", filepath, errmsg)
+					logger.Printf("cannot process data from file '%s': %s\n", filepath, errmsg)
 				}
 			} else {
-				errorLogger.Printf("cannot process data from file '%s': %s\n", filepath, err)
+				logger.Printf("cannot process data from file '%s': %s\n", filepath, err)
 			}
 		}
 		infile.Close()
@@ -452,9 +336,9 @@ func processFileTargets() {
 
 // processNetworkTarget starts a listening TCP socket and calls processReader
 func processNetworkTarget(target string) {
-	matchRegexes := make([]*regexp.Regexp, len(global.matchPatterns))
-	for i := range global.matchPatterns {
-		matchRegexes[i] = regexp.MustCompile(global.matchPatterns[i])
+	matchRegexes := make([]*regexp.Regexp, len(global.MatchPatterns))
+	for i := range global.MatchPatterns {
+		matchRegexes[i] = regexp.MustCompile(global.MatchPatterns[i])
 	}
 	defer global.targetsWaitGroup.Done()
 
@@ -465,12 +349,12 @@ func processNetworkTarget(target string) {
 
 	listener, err := net.Listen(proto, addr)
 	if err != nil {
-		errorLogger.Fatalf("could not listen on '%s'\n", target)
+		logger.Fatalf("could not listen on '%s'\n", target)
 	}
 
 	conn, err := listener.Accept()
 	if err != nil {
-		errorLogger.Fatalf("could not accept connections on '%s'\n", target)
+		logger.Fatalf("could not accept connections on '%s'\n", target)
 	}
 
 	if options.Multiline {
@@ -484,12 +368,12 @@ func processNetworkTarget(target string) {
 	testBuffer := make([]byte, InputBlockSize)
 	err = processReader(reader, matchRegexes, dataBuffer, testBuffer, target)
 	if err != nil {
-		errorLogger.Printf("error processing data from '%s'\n", target)
+		logger.Printf("error processing data from '%s'\n", target)
 		return
 	}
 }
 
-func executeSearch(targets []string) (ret int, err error) {
+func ExecuteSearch(targets []string) (ret int, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			ret = 2
@@ -527,9 +411,9 @@ func executeSearch(targets []string) (ret int, err error) {
 			fileinfo, err := os.Stat(target)
 			if err != nil {
 				if os.IsNotExist(err) {
-					errorLogger.Fatalf("no such file or directory: %s\n", target)
+					logger.Fatalf("no such file or directory: %s\n", target)
 				} else {
-					errorLogger.Fatalf("cannot open file or directory: %s\n", target)
+					logger.Fatalf("cannot open file or directory: %s\n", target)
 				}
 			}
 			if fileinfo.IsDir() {
@@ -558,7 +442,7 @@ func executeSearch(targets []string) (ret int, err error) {
 	}
 
 	if !options.ErrSkipLineLength && !options.ErrShowLineLength && global.totalLineLengthErrors > 0 {
-		errorLogger.Printf("%d files skipped due to very long lines (>= %d bytes). See options --blocksize, --err-show-line-length and --err-skip-line-length.", global.totalLineLengthErrors, InputBlockSize)
+		logger.Printf("%d files skipped due to very long lines (>= %d bytes). See options --blocksize, --err-show-line-length and --err-skip-line-length.", global.totalLineLengthErrors, InputBlockSize)
 	}
 
 	if options.Stats {

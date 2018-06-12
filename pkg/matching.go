@@ -181,7 +181,7 @@ func processReader(reader io.Reader, matchRegexes []*regexp.Regexp, data []byte,
 			}
 		}
 
-		for conditionID, condition := range global.conditions {
+		for conditionID, condition := range global.Conditions {
 			tmpMatches := getMatches(condition.regex, data, testDataPtr, offset, length, validMatchRange, conditionID, target)
 			if len(tmpMatches) > 0 {
 				conditionMatches = append(conditionMatches, tmpMatches...)
@@ -191,13 +191,13 @@ func processReader(reader io.Reader, matchRegexes []*regexp.Regexp, data []byte,
 			sort.Sort(Matches(conditionMatches))
 		}
 
-		if options.ShowLineNumbers || options.ContextBefore > 0 || options.ContextAfter > 0 || len(global.conditions) > 0 {
+		if options.ShowLineNumbers || options.ContextBefore > 0 || options.ContextAfter > 0 || len(global.Conditions) > 0 {
 			linecount = countLines(data, lastConditionMatch, newMatches, conditionMatches, offset, validMatchRange, linecount)
 		}
 
 		if len(newMatches) > 0 {
 			// if a list option is used exit here if possible
-			if (options.FilesWithMatches || options.FilesWithoutMatch) && !options.Count && len(global.conditions) == 0 {
+			if (options.FilesWithMatches || options.FilesWithoutMatch) && !options.Count && len(global.Conditions) == 0 {
 				global.resultsChan <- &Result{target: target, matches: []Match{{}}}
 				return nil
 			}
@@ -207,7 +207,7 @@ func processReader(reader io.Reader, matchRegexes []*regexp.Regexp, data []byte,
 				matchChan <- newMatches
 			} else {
 				matches = append(matches, newMatches...)
-				if len(matches) > global.streamingThreshold && global.streamingAllowed {
+				if len(matches) > global.StreamingThreshold && global.StreamingAllowed {
 					resultStreaming = true
 					matchChan = make(chan Matches, 16)
 					global.resultsChan <- &Result{target: target, matches: matches, streaming: true, matchChan: matchChan, isBinary: resultIsBinary}
@@ -425,33 +425,33 @@ func countLines(data []byte, lastConditionMatch int, matches Matches, conditionM
 
 // applyConditions removes matches from a result that do not fulfill all conditions
 func (result *Result) applyConditions() {
-	if len(result.matches) == 0 || len(global.conditions) == 0 {
+	if len(result.matches) == 0 || len(global.Conditions) == 0 {
 		return
 	}
 
 	// check conditions that are independent of found matches
-	conditionStatus := make([]bool, len(global.conditions))
+	conditionStatus := make([]bool, len(global.Conditions))
 	var conditionFulfilled bool
 	for _, conditionMatch := range result.conditionMatches {
 		conditionFulfilled = false
-		switch global.conditions[conditionMatch.conditionID].conditionType {
+		switch global.Conditions[conditionMatch.conditionID].conditionType {
 		case ConditionFileMatches:
 			conditionFulfilled = true
 		case ConditionLineMatches:
-			if conditionMatch.lineno == global.conditions[conditionMatch.conditionID].lineRangeStart {
+			if conditionMatch.lineno == global.Conditions[conditionMatch.conditionID].lineRangeStart {
 				conditionFulfilled = true
 			}
 		case ConditionRangeMatches:
-			if conditionMatch.lineno >= global.conditions[conditionMatch.conditionID].lineRangeStart &&
-				conditionMatch.lineno <= global.conditions[conditionMatch.conditionID].lineRangeEnd {
+			if conditionMatch.lineno >= global.Conditions[conditionMatch.conditionID].lineRangeStart &&
+				conditionMatch.lineno <= global.Conditions[conditionMatch.conditionID].lineRangeEnd {
 				conditionFulfilled = true
 			}
 		default:
 			// ingore other condition types
-			conditionFulfilled = !global.conditions[conditionMatch.conditionID].negated
+			conditionFulfilled = !global.Conditions[conditionMatch.conditionID].negated
 		}
 		if conditionFulfilled {
-			if global.conditions[conditionMatch.conditionID].negated {
+			if global.Conditions[conditionMatch.conditionID].negated {
 				result.matches = Matches{}
 				return
 			}
@@ -459,7 +459,7 @@ func (result *Result) applyConditions() {
 		}
 	}
 	for i := range conditionStatus {
-		if conditionStatus[i] != true && !global.conditions[i].negated {
+		if conditionStatus[i] != true && !global.Conditions[i].negated {
 			result.matches = Matches{}
 			return
 		}
@@ -470,12 +470,12 @@ MatchLoop:
 	for matchIndex := 0; matchIndex < len(result.matches); {
 		match := result.matches[matchIndex]
 		lineno := match.lineno
-		conditionStatus := make([]bool, len(global.conditions))
+		conditionStatus := make([]bool, len(global.Conditions))
 		for _, conditionMatch := range result.conditionMatches {
 			conditionFulfilled := false
-			maxAllowedDistance := global.conditions[conditionMatch.conditionID].within
+			maxAllowedDistance := global.Conditions[conditionMatch.conditionID].within
 			var actualDistance int64 = -1
-			switch global.conditions[conditionMatch.conditionID].conditionType {
+			switch global.Conditions[conditionMatch.conditionID].conditionType {
 			case ConditionPreceded:
 				actualDistance = lineno - conditionMatch.lineno
 				if actualDistance == 0 {
@@ -503,10 +503,10 @@ MatchLoop:
 				}
 			default:
 				// ingore other condition types
-				conditionFulfilled = !global.conditions[conditionMatch.conditionID].negated
+				conditionFulfilled = !global.Conditions[conditionMatch.conditionID].negated
 			}
 			if conditionFulfilled {
-				if global.conditions[conditionMatch.conditionID].negated {
+				if global.Conditions[conditionMatch.conditionID].negated {
 					goto ConditionFailed
 				} else {
 					conditionStatus[conditionMatch.conditionID] = true
@@ -514,7 +514,7 @@ MatchLoop:
 			}
 		}
 		for i := range conditionStatus {
-			if conditionStatus[i] != true && !global.conditions[i].negated {
+			if conditionStatus[i] != true && !global.Conditions[i].negated {
 				goto ConditionFailed
 			}
 		}

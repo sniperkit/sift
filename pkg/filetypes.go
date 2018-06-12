@@ -19,8 +19,22 @@ import (
 	"regexp"
 )
 
+type FileType struct {
+	Patterns     []string
+	ShebangRegex *regexp.Regexp
+}
+
 func init() {
-	global.fileTypesMap = map[string]FileType{
+
+	if global == nil {
+		global = &Global{}
+	}
+
+	if global.FileTypesMap == nil {
+		global.FileTypesMap = make(map[string]FileType, 0)
+	}
+
+	global.FileTypesMap = map[string]FileType{
 		"go": {
 			Patterns: []string{"*.go"},
 		},
