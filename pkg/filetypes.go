@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package main
+package sift
 
 import (
 	"regexp"
@@ -21,48 +21,48 @@ import (
 
 func init() {
 	global.fileTypesMap = map[string]FileType{
-		"go": FileType{
+		"go": {
 			Patterns: []string{"*.go"},
 		},
-		"cc": FileType{
+		"cc": {
 			Patterns: []string{"*.c", "*.h", "*.xs"},
 		},
-		"cpp": FileType{
+		"cpp": {
 			Patterns: []string{"*.cpp", "*.cc", "*.cxx", "*.m", "*.hpp", "*.hh", "*.h", "*.hxx"},
 		},
-		"html": FileType{
+		"html": {
 			Patterns: []string{"*.htm", "*.html", "*.shtml", "*.xhtml"},
 		},
-		"groovy": FileType{
+		"groovy": {
 			Patterns: []string{"*.groovy", "*.gtmpl", "*.gpp", "*.grunit", "*.gradle"},
 		},
-		"java": FileType{
+		"java": {
 			Patterns: []string{"*.java", "*.properties"},
 		},
-		"jsp": FileType{
+		"jsp": {
 			Patterns: []string{"*.jsp", "*.jspx", "*.jhtm", "*.jhtml"},
 		},
-		"perl": FileType{
+		"perl": {
 			Patterns:     []string{"*.pl", "*.pm", "*.pod", "*.t"},
 			ShebangRegex: regexp.MustCompile(`^#!.*\bperl\b`),
 		},
-		"php": FileType{
+		"php": {
 			Patterns:     []string{"*.php", "*.phpt", "*.php3", "*.php4", "*.php5", "*.phtml"},
 			ShebangRegex: regexp.MustCompile(`^#!.*\bphp\b`),
 		},
-		"ruby": FileType{
+		"ruby": {
 			Patterns:     []string{"*.rb", "*.rhtml", "*.rjs", "*.rxml", "*.erb", "*.rake", "*.spec", "Rakefile"},
 			ShebangRegex: regexp.MustCompile(`^#!.*\bruby\b`),
 		},
-		"python": FileType{
+		"python": {
 			Patterns:     []string{"*.py", "*.pyw", "*.pyx", "SConstruct"},
 			ShebangRegex: regexp.MustCompile(`^#!.*\bpython[0-9.]*\b`),
 		},
-		"shell": FileType{
+		"shell": {
 			Patterns:     []string{"*.sh", "*.bash", "*.csh", "*.tcsh", "*.ksh", "*.zsh"},
 			ShebangRegex: regexp.MustCompile(`^#!.*\b(?:ba|t?c|k|z)?sh\b`),
 		},
-		"xml": FileType{
+		"xml": {
 			Patterns:     []string{"*.xml", "*.dtd", "*.xsl", "*.xslt", "*.ent"},
 			ShebangRegex: regexp.MustCompile(`<\?xml`),
 		},

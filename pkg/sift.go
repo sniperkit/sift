@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package main
+package sift
 
 import (
 	"bufio"
@@ -31,37 +31,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/svent/go-flags"
 	"github.com/svent/go-nbreader"
-	"github.com/svent/sift/gitignore"
+
+	"github.com/sniperkit/pkg/sift/gitignore"
 	"golang.org/x/crypto/ssh/terminal"
-)
-
-const (
-	// InputMultilineWindow is the size of the sliding window for multiline matching
-	InputMultilineWindow = 32 * 1024
-	// MultilinePipeTimeout is the timeout for reading and matching input
-	// from STDIN/network in multiline mode
-	MultilinePipeTimeout = 1000 * time.Millisecond
-	// MultilinePipeChunkTimeout is the timeout to consider last input from STDIN/network
-	// as a complete chunk for multiline matching
-	MultilinePipeChunkTimeout = 150 * time.Millisecond
-	// MaxDirRecursionRoutines is the maximum number of parallel routines used
-	// to recurse into directories
-	MaxDirRecursionRoutines = 3
-	SiftConfigFile          = ".sift.conf"
-	SiftVersion             = "0.9.0"
-)
-
-type ConditionType int
-
-const (
-	ConditionPreceded ConditionType = iota
-	ConditionFollowed
-	ConditionSurrounded
-	ConditionFileMatches
-	ConditionLineMatches
-	ConditionRangeMatches
 )
 
 type Condition struct {
@@ -124,11 +97,18 @@ var (
 	errorLogger    = log.New(os.Stderr, "Error: ", 0)
 	errLineTooLong = errors.New("line too long")
 )
-var global = struct {
-	conditions            []Condition
+
+// Global specifies
+type Global struct {
+	// public
+	Conditions            []Condition
+	StreamingAllowed      bool
+	StreamingThreshold    int
+	FileTypesMap          map[string]FileType
+
+	// private
 	filesChan             chan string
 	directoryChan         chan string
-	fileTypesMap          map[string]FileType
 	includeFilepathRegex  *regexp.Regexp
 	excludeFilepathRegex  *regexp.Regexp
 	netTcpRegex           *regexp.Regexp
@@ -140,8 +120,6 @@ var global = struct {
 	resultsDoneChan       chan struct{}
 	targetsWaitGroup      sync.WaitGroup
 	recurseWaitGroup      sync.WaitGroup
-	streamingAllowed      bool
-	streamingThreshold    int
 	termHighlightFilename string
 	termHighlightLineno   string
 	termHighlightMatch    string
@@ -150,10 +128,28 @@ var global = struct {
 	totalMatchCount       int64
 	totalResultCount      int64
 	totalTargetCount      int64
-}{
-	outputFile:         os.Stdout,
-	netTcpRegex:        regexp.MustCompile(`^(tcp[46]?)://(.*:\d+)$`),
-	streamingThreshold: 1 << 16,
+}
+
+var global &Global
+
+func SetGlobal(g *Global) error {
+	if g.outputFile == nil {
+		g.outputFile = os.Stdout
+	}
+
+	if g.NetTcpRegex == nil {
+		g.NetTcpRegex = regexp.MustCompile(`^(tcp[46]?)://(.*:\d+)$`)
+	}
+
+	if g.streamingThreshold <= 0 {
+	g.StreamingThreshold = 1 << 16
+	}
+
+	global = g
+}
+
+func Logger(logger *log.Logger) {
+	errorLogger = logger
 }
 
 // processDirectories reads global.directoryChan and processes
@@ -571,120 +567,4 @@ func executeSearch(targets []string) (ret int, err error) {
 	}
 
 	return retVal, nil
-}
-
-func main() {
-	var targets []string
-	var args []string
-	var err error
-
-	parser := flags.NewNamedParser("sift", flags.HelpFlag|flags.PassDoubleDash)
-	parser.AddGroup("Options", "Options", &options)
-	parser.Name = "sift"
-	parser.Usage = "[OPTIONS] PATTERN [FILE|PATH|tcp://HOST:PORT]...\n" +
-		"  sift [OPTIONS] [-e PATTERN | -f FILE] [FILE|PATH|tcp://HOST:PORT]...\n" +
-		"  sift [OPTIONS] --targets [FILE|PATH]..."
-
-	// temporarily parse options to see if the --no-conf/--conf options were used and
-	// then discard the result
-	options.LoadDefaults()
-	args, err = parser.Parse()
-	if err != nil {
-		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-			fmt.Println(e.Error())
-			os.Exit(0)
-		} else {
-			errorLogger.Println(err)
-			os.Exit(2)
-		}
-	}
-	noConf := options.NoConfig
-	configFile := options.ConfigFile
-	options = Options{}
-
-	// perform full option parsing respecting the --no-conf/--conf options
-	options.LoadDefaults()
-	options.LoadConfigs(noConf, configFile)
-	args, err = parser.Parse()
-	if err != nil {
-		errorLogger.Println(err)
-		os.Exit(2)
-	}
-
-	for _, pattern := range options.Patterns {
-		global.matchPatterns = append(global.matchPatterns, pattern)
-	}
-
-	if options.PatternFile != "" {
-		f, err := os.Open(options.PatternFile)
-		if err != nil {
-			errorLogger.Fatalln("Cannot open pattern file:\n", err)
-		}
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			pattern := scanner.Text()
-			global.matchPatterns = append(global.matchPatterns, pattern)
-
-		}
-	}
-	if len(global.matchPatterns) == 0 {
-		if len(args) == 0 && !(options.PrintConfig || options.WriteConfig ||
-			options.TargetsOnly || options.ListTypes) {
-			errorLogger.Fatalln("No pattern given. Try 'sift --help' for more information.")
-		}
-		if len(args) > 0 && !options.TargetsOnly {
-			global.matchPatterns = append(global.matchPatterns, args[0])
-			args = args[1:len(args)]
-		}
-	}
-
-	if len(args) == 0 {
-		// check whether there is input on STDIN
-		if !terminal.IsTerminal(int(os.Stdin.Fd())) {
-			targets = []string{"-"}
-		} else {
-			targets = []string{"."}
-		}
-	} else {
-		targets = args[0:len(args)]
-	}
-
-	// expand arguments containing patterns on Windows
-	if runtime.GOOS == "windows" {
-		targetsExpanded := []string{}
-		for _, t := range targets {
-			if t == "-" {
-				targetsExpanded = append(targetsExpanded, t)
-				continue
-			}
-			expanded, err := filepath.Glob(t)
-			if err == filepath.ErrBadPattern {
-				errorLogger.Fatalf("cannot parse argument '%s': %s\n", t, err)
-			}
-			if expanded != nil {
-				for _, e := range expanded {
-					targetsExpanded = append(targetsExpanded, e)
-				}
-			}
-		}
-		targets = targetsExpanded
-	}
-
-	if err := options.Apply(global.matchPatterns, targets); err != nil {
-		errorLogger.Fatalf("cannot process options: %s\n", err)
-	}
-
-	global.matchRegexes = make([]*regexp.Regexp, len(global.matchPatterns))
-	for i := range global.matchPatterns {
-		global.matchRegexes[i], err = regexp.Compile(global.matchPatterns[i])
-		if err != nil {
-			errorLogger.Fatalf("cannot parse pattern: %s\n", err)
-		}
-	}
-
-	retVal, err := executeSearch(targets)
-	if err != nil {
-		errorLogger.Println(err)
-	}
-	os.Exit(retVal)
 }
