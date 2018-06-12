@@ -30,7 +30,7 @@ all: deps test build install version
 
 build: semver
 	@go build -ldflags "-X main.VERSION=`cat VERSION`" -o ./bin/$(PROG_NAME) ./cmd/$(PROG_NAME)/*.go
-	@./bin/$(PROG_NAME) -version
+	@./bin/$(PROG_NAME) --version
 
 semver:
 	@echo "Previous version: $(VERSION_INFILE)"
@@ -40,11 +40,11 @@ semver:
 
 install: semver deps
 	@go install -ldflags "-X main.VERSION=`cat VERSION`" ./cmd/$(PROG_NAME)
-	@$(PROG_NAME) -version
+	@$(PROG_NAME) --version
 
 fast: deps
 	@go build -i -ldflags "-X main.VERSION=`cat VERSION`-dev" -o ./bin/$(PROG_NAME) ./cmd/$(PROG_NAME)/*.go
-	@$(PROG_NAME) -version
+	@$(PROG_NAME) --version
 
 deps:
 	@go get -v -u github.com/mattn/goveralls

@@ -33,6 +33,8 @@ import (
 	nbreader "github.com/sniperkit/sift/plugin/nbreader"
 )
 
+var VERSION string
+
 var (
 	InputBlockSize int = 256 * 1024
 )
