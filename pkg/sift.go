@@ -31,10 +31,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/svent/go-nbreader"
-
-	"github.com/sniperkit/pkg/sift/gitignore"
+	// external
 	"golang.org/x/crypto/ssh/terminal"
+
+	// internal
+	nbreader "github.com/sniperkit/sift/pkg/nbreader"
+	gitignore "github.com/sniperkit/sift/pkg/gitignore"
+
 )
 
 type Condition struct {

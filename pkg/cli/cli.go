@@ -7,11 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	// external
-	"github.com/svent/go-flags"
-
 	// internal
 	sift "github.com/sniperkit/sift/pkg"
+	flags "github.com/sniperkit/sift/pkg/cli/flags"
 )
 
 var logger = log.New(os.Stderr, "Error: ", 0)

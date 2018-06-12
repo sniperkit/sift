@@ -1,1 +1,1 @@
-errors.go
+package sift
