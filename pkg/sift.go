@@ -33,8 +33,6 @@ import (
 	nbreader "github.com/sniperkit/snk.golang.sift/plugin/nbreader"
 )
 
-var VERSION string
-
 var (
 	InputBlockSize int = 256 * 1024
 )

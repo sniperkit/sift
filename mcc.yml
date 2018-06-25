@@ -1,0 +1,157 @@
+---
+schema_version: v1.1.0
+timezone: Europe/Paris
+widgets:
+
+  - id: menu_make
+    type: menu
+    title: Makefile targets
+    content:
+
+      - category: Makefile
+        name: Build
+        description: build local version of commands available in './cmd'
+        command: make build
+
+      - category: Makefile
+        name: Install
+        description: install local version of commands available in './cmd'
+        command: make install
+
+      - category: Makefile
+        name: Dist
+        description: build dist version of commands available in './cmd'
+        command: make dist
+
+      - category: Makefile
+        name: Examples
+        description: build all examples available in './_examples'
+        command: make examples
+
+      - category: Makefile
+        name: Example
+        description: build specific example available in './_examples'
+        command: make example/simple
+
+  - id: menu_docker
+    type: menu
+    title: DOCKER
+    content:
+
+      - category: Docker
+        name: Build docker image
+        description: build & run to check an example of sift running in a docker container
+        command: make docker
+
+      - category: Docker
+        name: Build docker-compose
+        description: build docker images available in 'docker-compose.yml'
+        command: make docker-compose
+
+      - category: Docker
+        name: Provision crane
+        description: provision docker images available in 'crane.yml'
+        command: make docker-compose
+
+  - id: menu_git
+    type: menu
+    title: Git
+    content:
+      - type: menu
+        title: DEVELOPMENT
+        height: 60%
+        content:
+
+        - category: GitHub
+          name: Project Home
+          description: Open Github repository home by your browser
+          command: _bin/lib/git-open/git-open origin master
+
+        - category: GitHub
+          name: Issue
+          description: Open Github issue page you are on by your browser
+          command: _bin/lib/github-issue-open/main
+
+        - category: Go command
+          name: Build
+          description: build and distribute binary
+          command: _bin/build
+
+        - category: Go command
+          name: Install
+          description: go install github.com/qmu/mcc
+          command: _bin/install
+
+        - category: Go command
+          name: Format
+          description: go fmt to all codes
+          command: _bin/go_fmt
+
+        - category: Util
+          name: Update mcc
+          description: self updateing
+          command: _bin/mcc --self-update
+
+      - type: git_status
+        title: GIT STATUS
+        height: 40%
+
+      - section: col
+        widgets:
+          - type: github_issue
+            title: CURRENT ISSUE
+            height: 70%
+            issue_regex: "i([0-9]*).*"
+
+          - type: note
+            title: DEV MEMO
+            height: 30%
+            content: |
+              ## 1. Dependencies
+            
+              Use glide (https://github.com/Masterminds/glide) to add any packages.
+
+              // Adding new packages
+              $ glide get golang.org/x/net/websocket
+
+              ## 2. Unit testing
+              
+              $ go test -v dashboard/list_renderer_test.go
+
+layout:
+
+  - name: Make GNU
+    rows:
+      - height: 100%
+        cols:
+          - width: 12
+            stacks:
+              - id: menu_make
+                height: 100%
+
+  - name: Git
+    rows:
+      - height: 100%
+        cols:
+          - width: 12
+            stacks:
+              - id: menu_git
+                height: 100%
+
+  - name: Docker
+    rows:
+      - height: 100%
+        cols:
+          - width: 12
+            stacks:
+              - id: menu_docker
+                height: 100%
+
+  - name: Dashboard
+    rows:
+      - height: 100%
+        cols:
+          - width: 12
+            stacks:
+              - id: menu_dashboard
+                height: 100%

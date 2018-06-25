@@ -2,6 +2,8 @@ package sift
 
 import (
 	"time"
+
+	rev "github.com/sniperkit/snk.golang.sift/pkg/version"
 )
 
 const (
@@ -16,8 +18,10 @@ const (
 	// MaxDirRecursionRoutines is the maximum number of parallel routines used
 	// to recurse into directories
 	MaxDirRecursionRoutines = 3
-	SiftConfigFile          = ".sift.conf"
-	SiftVersion             = "0.9.0"
+	// SiftConfigFile specifies the default sift config filename
+	SiftConfigFile = ".sift.conf"
+	// SiftVersion specifies the package version
+	SiftVersion = rev.Version
 )
 
 type ConditionType int
