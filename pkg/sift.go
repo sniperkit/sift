@@ -29,8 +29,8 @@ import (
 	"time"
 
 	// internal
-	gitignore "github.com/sniperkit/sift/plugin/gitignore"
-	nbreader "github.com/sniperkit/sift/plugin/nbreader"
+	gitignore "github.com/sniperkit/snk.golang.sift/plugin/gitignore"
+	nbreader "github.com/sniperkit/snk.golang.sift/plugin/nbreader"
 )
 
 var VERSION string

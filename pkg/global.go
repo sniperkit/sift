@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	// internal
-	gitignore "github.com/sniperkit/sift/plugin/gitignore"
+	gitignore "github.com/sniperkit/snk.golang.sift/plugin/gitignore"
 )
 
 var global *Global

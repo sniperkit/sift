@@ -1,7 +1,7 @@
 package main
 
 import (
-	cli "github.com/sniperkit/sift/plugin/cli"
+	cli "github.com/sniperkit/snk.golang.sift/plugin/cli"
 )
 
 func main() {

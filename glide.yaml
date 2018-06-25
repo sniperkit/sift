@@ -1,4 +1,4 @@
-package: github.com/sniperkit/sift
+package: github.com/sniperkit/snk.golang.sift
 import:
 - package: golang.org/x/crypto
   subpackages:

@@ -22,4 +22,4 @@ Example Usage:
 	// or when at least 64k bytes have been read or the maximum timeout of 2 seconds is hit.
 	nbr := nbreader.NewNBReader(reader, 1 << 16, nbreader.Timeout(2000 * time.Millisecond), nbreader.ChunkTimeout(200 * time.Millisecond))
 
-The full documentation can be found here: <http://godoc.org/github.com/sniperkit/sift/pkg/nbreader>
+The full documentation can be found here: <http://godoc.org/github.com/sniperkit/snk.golang.sift/pkg/nbreader>

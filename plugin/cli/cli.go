@@ -12,8 +12,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	// internal
-	sift "github.com/sniperkit/sift/pkg"
-	flags "github.com/sniperkit/sift/plugin/flags"
+	sift "github.com/sniperkit/snk.golang.sift/pkg"
+	flags "github.com/sniperkit/snk.golang.sift/plugin/flags"
 )
 
 var (
